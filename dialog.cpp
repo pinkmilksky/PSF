@@ -1,0 +1,273 @@
+#include "dialog.h"
+#include "ui_dialog.h"
+#include <QDebug>
+#include <QFileDialog>
+#include <QDoubleValidator>
+#include <QImage>
+#include <QMessageBox>
+
+#include <QApplication>
+#include <QSet>
+#include "overlay.h"
+
+//-------------------------------------------------------------------------------------------------
+Dialog::Dialog(QWidget *parent) :
+    QDialog(parent),
+    ui(new Ui::Dialog) 
+{
+    ui->setupUi(this);
+
+    // connect([кто посылает], SIGNAL([сигнал]), [кто обрабатывает], SLOT([слот]));
+    connect(ui->m_PB_Open, SIGNAL(clicked()), this, SLOT(onOpenImage()));    
+    connect(ui->m_Clear, SIGNAL(clicked()), this, SLOT(onClear()));
+    connect(ui->m_TW_Res, SIGNAL(itemSelectionChanged()), this, SLOT(onSelectRow()));
+    connect(ui->m_RB_CalcEnergy, SIGNAL(clicked()), this, SLOT(onCheckEnabled()));
+    connect(ui->m_RB_CalcRadius, SIGNAL(clicked()), this, SLOT(onCheckEnabled()));
+    connect(ui->m_RB_CenterEnergy, SIGNAL(clicked()), this, SLOT(onCheckEnabled()));
+    connect(ui->m_RB_CenterMass, SIGNAL(clicked()), this, SLOT(onCheckEnabled()));
+    connect(ui->m_RB_CenterSet, SIGNAL(clicked()), this, SLOT(onCheckEnabled()));
+    connect(ui->m_PB_Zoom_In, SIGNAL(released()), this, SLOT(onZoomIn()));
+    connect(ui->m_PB_Zoom_Out, SIGNAL(released()), this, SLOT(onZoomOut()));
+    connect(ui->m_PB_Zoom_Default, SIGNAL(released()), this, SLOT(onZoomDefault()));
+    connect(ui->m_PB_Center, SIGNAL(released()), this, SLOT(onCenterImage()));
+
+    // одинаковые размеры у Сплиттера
+    ui->m_Splitter->setStretchFactor(0,0);
+    ui->m_Splitter->setStretchFactor(1,1);
+
+    // размер таблицы - по содержимому колонок
+    ui->m_TW_Res->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    // выбираем только строки
+    ui->m_TW_Res->setSelectionBehavior(QAbstractItemView::SelectRows);
+    // скрываем колонку с индексом
+    ui->m_TW_Res->setColumnHidden(9, true);
+    // только числа
+    ui->m_LE_AreaSize->setValidator(new QDoubleValidator(ui->m_LE_AreaSize));
+    ui->m_LE_EnergySize->setValidator(new QDoubleValidator(ui->m_LE_EnergySize));
+    ui->m_LE_Center_X->setValidator(new QDoubleValidator(ui->m_LE_Center_X));
+    ui->m_LE_Center_Y->setValidator(new QDoubleValidator(ui->m_LE_Center_Y));
+    // сразу значение по умолчанию
+    ui->m_LE_AreaSize->setText("100");
+    ui->m_LE_EnergySize->setText("90");
+
+    // вычисление радиуса пока не работает
+//    ui->m_RB_CalcRadius->setEnabled(false);
+
+    // проверяем и устанавливаем недоступные поля
+    onCheckEnabled();
+}
+//-------------------------------------------------------------------------------------------------
+Dialog::~Dialog()
+{
+    delete ui;
+}
+//-------------------------------------------------------------------------------------------------
+void Dialog::onClear()
+{
+    ui->m_TW_Res->setRowCount(0);
+    m_Images.clear();
+}
+//-------------------------------------------------------------------------------------------------
+void Dialog::DrawImage(int i)
+{
+    if(m_Images.size()>i)
+    {
+        // новая сцена и на нее картинка
+        QGraphicsScene *scene = new QGraphicsScene(this);
+        scene->addPixmap(QPixmap::fromImage(m_Images[i]));
+        // рисуем эллипс и прямоугольник
+        // x y w h
+        double x=m_Images[i].m_CenterXCircle,
+               y=m_Images[i].m_CenterYCircle,
+               r=m_Images[i].m_SizeCircle;
+        scene->addEllipse(x-r, y-r, r*2, r*2, QPen(Qt::red));
+        // задаем размер сцены, положение линеее прокрутки, устанавливаем сцену на элемент управления
+        ui->m_GV_Image->setSceneRect(0,0,m_Images[i].width(),m_Images[i].height());
+        ui->m_GV_Image->centerOn(x,y);
+        ui->m_GV_Image->setScene(scene);
+        selectedImage = i;
+    }
+}
+//-------------------------------------------------------------------------------------------------
+// рисуем ФРТ от выделенной строчки в таблице
+void Dialog::onSelectRow()
+{
+    QModelIndexList selection = ui->m_TW_Res->selectionModel()->selectedRows();
+
+    // Multiple rows can be selected
+    if(selection.count()>0)
+    {
+        // берем значение из колонки "индекс"
+        int row = ui->m_TW_Res->item(selection.at(0).row(), 9)->text().toInt();
+        DrawImage(row);
+    }
+}
+//-------------------------------------------------------------------------------------------------
+void Dialog::onOpenImage()
+{
+    // создаем диалоговое окно для выбора имени файла
+    QStringList sFileName = QFileDialog::getOpenFileNames(this, "Открыть изображение", "", "Image (*.bmp)");
+
+    double radius = ui->m_LE_AreaSize->text().toDouble();
+    double energy = ui->m_LE_EnergySize->text().toDouble();
+
+    // загружаем изображения (добавляем к уже загруженным)   
+    size_t oldSize=m_Images.size();
+    m_Images.resize(oldSize + sFileName.size());
+    for(int i=0; i<sFileName.size(); ++i)
+    {
+        m_Images[oldSize+i].load(sFileName[i]);
+        m_Images[oldSize+i].m_sFileName=sFileName[i];
+        m_Images[oldSize+i].PreProcessing();
+        if(ui->m_RB_CenterSet->isChecked())
+        {
+            m_Images[oldSize+i].m_CenterXCircle =
+                    m_Images[oldSize+i].m_CenterXSquare = ui->m_LE_Center_X->text().toDouble();
+            m_Images[oldSize+i].m_CenterYCircle =
+                    m_Images[oldSize+i].m_CenterYSquare = ui->m_LE_Center_Y->text().toDouble();
+        }
+
+        if(ui->m_RB_CalcEnergy->isChecked())
+        {
+            m_Images[oldSize+i].m_SizeCircle=radius;
+            m_Images[oldSize+i].m_SizeSquare=radius;
+            if(!ui->m_RB_CenterEnergy->isChecked())
+            {
+                m_Images[oldSize+i].calcCircleEnergy();
+                m_Images[oldSize+i].calcSquareEnergy();
+            }
+            else
+            {
+                m_Images[oldSize+i].calcCircleCenter();
+                m_Images[oldSize+i].calcSquareCenter();
+            }
+        }
+        else
+        {
+            m_Images[oldSize+i].m_EnergyCircle = energy;
+            m_Images[oldSize+i].m_EnergySquare = energy;
+            m_Images[oldSize+i].calcCircleRadius();
+            m_Images[oldSize+i].calcSquareRadius();
+        }
+    }
+
+    QSet<Parser*> parsers = QSet<Parser*>();
+    for(size_t i=0; i<sFileName.size(); i++)
+    {
+        parsers.insert(&m_Images[i]);
+    }
+    Overlay overlay = Overlay();
+    Parser simple = overlay.makeSimple(parsers);
+    Parser centered = overlay.makeCentered(parsers);
+    simple.m_SizeCircle = radius;
+    centered.m_SizeCircle = radius;
+    m_Images.push_back(simple);
+    m_Images.push_back(centered);
+
+
+    // рисуем ФРТ от первой загруженной картинки
+    DrawImage(0);
+
+    // после вычислений записываем результат в таблицу
+    ui->m_TW_Res->setSortingEnabled(false);
+    ui->m_TW_Res->setRowCount(0);
+    for(int iRow=0; iRow<m_Images.size(); ++iRow)
+    {
+        // вставляем новую строку
+        ui->m_TW_Res->insertRow(iRow);
+
+        // создаем новую ячейку (Item) таблицы для имени файла
+        QTableWidgetItem* qItem = new QTableWidgetItem();
+        // устнавливаем параметры: ячейка доступна + ее можно выбрать (+ ее можно редактировать | Qt::ItemIsEditable
+        qItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        // имя файла
+        qItem->setData(0, m_Images[iRow].m_sFileName);
+        // устанавливаем созданную ячейку в нужное место в таблицы
+        ui->m_TW_Res->setItem(iRow, 0, qItem);
+
+        // записываем численные результаты в таблицу
+        for(int iCol=1; iCol<11; ++iCol)
+        {
+            double dValue;
+            switch (iCol)
+            {            
+                case 1: // оставляем 2 знака после запятой (хотя лучше это делать при переводе в строку)
+                    dValue = double(int(m_Images[iRow].m_EnergyCircle*100))/100;
+                    break;
+                case 2:
+                    dValue = double(int( m_Images[ iRow].m_EnergySquare*100))/100;
+                    break;
+                case 3:
+                    dValue = int(m_Images[iRow].m_CenterXCircle);
+                    break;
+                case 4:
+                    dValue = int(m_Images[iRow].m_CenterYCircle);
+                    break;
+                case 5:
+                    dValue = int(m_Images[iRow].m_CenterXSquare);
+                    break;
+                case 6:
+                    dValue = int(m_Images[iRow].m_CenterYSquare);
+                    break;
+                case 7:
+                    dValue = m_Images[iRow].m_SizeCircle;
+                    break;
+                case 8:
+                    dValue = m_Images[iRow].m_SizeSquare;
+                    break;
+                case 9:
+                    dValue = iRow;
+                    break;
+                default:
+                    dValue = 0;
+                    break;
+            }
+            // создаем новую ячейку (Item) таблицы
+            QTableWidgetItem* qItem2 = new QTableWidgetItem();
+            // устанавливаем параметры: ячейка доступна + ее можно выбрать (+ ее можно редактировать | Qt::ItemIsEditable
+            qItem2->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            qItem2->setTextAlignment(Qt::AlignCenter);
+            // устанавливаем значение в ячейку как double
+            qItem2->setData(0, QVariant::fromValue(dValue));
+            // устанавливаем созданную ячейку в нужное место в таблицы
+            ui->m_TW_Res->setItem(iRow, iCol, qItem2);
+        }
+    }
+    ui->m_TW_Res->setSortingEnabled(true);
+    ui->m_PB_Center->setEnabled(true);
+    ui->m_PB_Zoom_In->setEnabled(true);
+    ui->m_PB_Zoom_Out->setEnabled(true);
+    ui->m_PB_Zoom_Default->setEnabled(true);
+}
+//-------------------------------------------------------------------------------------------------
+void Dialog::onCheckEnabled()
+{
+    bool bCalcEnergy=ui->m_RB_CalcEnergy->isChecked();
+    ui->m_LE_AreaSize->setEnabled(bCalcEnergy);
+    ui->m_LE_EnergySize->setEnabled(!bCalcEnergy);
+
+    bool bCenterSet=ui->m_RB_CenterSet->isChecked();
+    ui->m_LE_Center_X->setEnabled(bCenterSet);
+    ui->m_LE_Center_Y->setEnabled(bCenterSet);
+
+    ui->m_RB_CenterEnergy->setEnabled(bCalcEnergy);
+}
+//-------------------------------------------------------------------------------------------------
+void Dialog::onZoomIn() {
+    ui->m_GV_Image->scale(1.2, 1.2);
+    scalingFactor *= 1.2;
+}
+void Dialog::onZoomOut() {
+    ui->m_GV_Image->scale(1.0 / 1.2, 1.0 / 1.2);
+    scalingFactor /= 1.2;
+}
+void Dialog::onZoomDefault() {
+    ui->m_GV_Image->scale(1.0 / scalingFactor, 1.0 / scalingFactor);
+    scalingFactor = 1.0;
+}
+void Dialog::onCenterImage() {
+    double x=m_Images[selectedImage].m_CenterXCircle,
+           y=m_Images[selectedImage].m_CenterYCircle;
+    ui->m_GV_Image->centerOn(x, y);
+
+}
