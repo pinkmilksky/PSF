@@ -27,9 +27,11 @@ public slots:
     void onZoomOut();
     void onCenterImage();
     void onZoomDefault();
+    void onCalculateSelected();
 
 private slots:
     void onCheckEnabled();
+    void displayMenu(const QPoint &pos);
 
 private:
     Ui::Dialog *ui;
@@ -39,6 +41,8 @@ private:
     std::vector<Parser> m_Images;
 
     void DrawImage(int i);
+    void UpdateTable();
+    bool isCircle();
 };
 
 #endif // DIALOG_H

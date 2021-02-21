@@ -41,7 +41,14 @@ Parser Overlay::makeSimple(const QSet<Parser*>& parsers)
         }
     }
 
-    p.m_sFileName = "Наложение (без центрирования)";
+    QString numbers = "(";
+    for (auto it = parsers.rbegin(); it != parsers.rend(); it++) {
+        numbers += QString::number((*it)->absolute_position + 1);
+        if (it != parsers.rend() - 1) numbers += ", ";
+    }
+    numbers += ")";
+
+    p.m_sFileName = "Наложение без центрирования " + numbers;
     p.PreProcessing();
     return p;
 }
@@ -119,7 +126,14 @@ Parser Overlay::makeCentered(const QSet<Parser*>& parsers)
         }
     }
 
-    p.m_sFileName = "Наложение (с центрированием)";
+    QString numbers = "(";
+    for (auto it = parsers.rbegin(); it != parsers.rend(); it++) {
+        numbers += QString::number((*it)->absolute_position + 1);
+        if (it != parsers.rend() - 1) numbers += ", ";
+    }
+    numbers += ")";
+
+    p.m_sFileName = "Наложение с центрированием " + numbers;
     p.PreProcessing();
     return p;
 }

@@ -21,6 +21,7 @@ public:
     // координаты центра
     double m_CenterXCircle = 0, m_CenterYCircle = 0;
     double m_CenterXSquare = 0, m_CenterYSquare = 0;
+    int absolute_position; // позиция картинки в векторе
 
 
 public:
