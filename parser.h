@@ -11,7 +11,7 @@ private:
     // суммарная энергия и центр
     double m_sumEnergy = 0;
     // значение фона
-    double m_background=0;
+    int m_background=0;
 
 public:
     //энергия в области (%)
@@ -21,6 +21,8 @@ public:
     // координаты центра
     double m_CenterXCircle = 0, m_CenterYCircle = 0;
     double m_CenterXSquare = 0, m_CenterYSquare = 0;
+    int absolute_position; // позиция картинки в векторе
+    int amount_overexposure = 0;
 
 
 public:
@@ -81,6 +83,7 @@ public:
     // записывает результат в m_SizeCircle,m_SizeSquare
     void calcSquareRadius ();
     void calcCircleRadius ();
+    void calcOverexposure();
 
 private:
     double SquareEnergy(double X, double Y, double r);

@@ -10,8 +10,8 @@
 class Overlay
 {
 public:
-    Parser makeSimple(const QSet<Parser*>& parsers);
-    Parser makeCentered(const QSet<Parser*>& parsers);
+    Parser* makeSimple(const QSet<Parser*>& parsers);
+    Parser* makeCentered(const QSet<Parser*>& parsers);
     //конструктор
     Overlay();
 };

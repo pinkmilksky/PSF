@@ -8,7 +8,7 @@ Overlay::Overlay()
 }
 
 // функция для создания изображения без центрирования
-Parser Overlay::makeSimple(const QSet<Parser*>& parsers)
+Parser* Overlay::makeSimple(const QSet<Parser*>& parsers)
 {
     qDebug() << "Search aggregate matrix size";
 
@@ -28,25 +28,32 @@ Parser Overlay::makeSimple(const QSet<Parser*>& parsers)
 
     qDebug() << "Build aggregate matrix";
 
-    Parser p = Parser(width, height);
+    Parser* p = new Parser(width, height);
 
     for (Parser* parser: parsers) {
         for (int x = 0; x < parser->width(); x++) {
 
             // перенос
             for (int y = 0; y < parser->height(); y++) {
-                int nValue = parser->Get_Value(x, y) + p.Get_Value(x, y);
-                p.setValue(x, y, std::min(nValue, 255));
+                int nValue = parser->Get_Value(x, y) + p->Get_Value(x, y);
+                p->setValue(x, y, std::min(nValue, 255));
             }
         }
     }
 
-    p.m_sFileName = "Наложение (без центрирования)";
-    p.PreProcessing();
+    QString numbers = "(";
+    for (auto it = parsers.rbegin(); it != parsers.rend(); it++) {
+        numbers += QString::number((*it)->absolute_position);
+        if (it != parsers.rend() - 1) numbers += ", ";
+    }
+    numbers += ")";
+
+    p->m_sFileName = "Наложение без центрирования " + numbers;
+    p->PreProcessing();
     return p;
 }
 
-Parser Overlay::makeCentered(const QSet<Parser*>& parsers)
+Parser* Overlay::makeCentered(const QSet<Parser*>& parsers)
 {
     qDebug() << "Search aggregate mass center";
 
@@ -97,7 +104,7 @@ Parser Overlay::makeCentered(const QSet<Parser*>& parsers)
     qDebug() << "Build aggregate matrix";
 
 
-    Parser p = Parser(width, height);
+    Parser* p = new Parser(width, height);
 
     for (Parser parser: parsers) {
 
@@ -113,13 +120,20 @@ Parser Overlay::makeCentered(const QSet<Parser*>& parsers)
 
             // перенос
             for (int y = 0; y < parser.height(); y++) {
-                int nValue = parser.Get_Value(x, y) + p.Get_Value(x + offsetX, y + offsetY);
-                p.setValue(x + offsetX, y + offsetY, std::min(nValue, 255));
+                int nValue = parser.Get_Value(x, y) + p->Get_Value(x + offsetX, y + offsetY);
+                p->setValue(x + offsetX, y + offsetY, std::min(nValue, 255));
             }
         }
     }
 
-    p.m_sFileName = "Наложение (с центрированием)";
-    p.PreProcessing();
+    QString numbers = "(";
+    for (auto it = parsers.rbegin(); it != parsers.rend(); it++) {
+        numbers += QString::number((*it)->absolute_position);
+        if (it != parsers.rend() - 1) numbers += ", ";
+    }
+    numbers += ")";
+
+    p->m_sFileName = "Наложение с центрированием " + numbers;
+    p->PreProcessing();
     return p;
 }

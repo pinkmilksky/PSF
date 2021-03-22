@@ -27,6 +27,7 @@ void Parser::PreProcessing()
 
     calcSumEnergy();
     calcOverexposure();
+    
 
     m_CenterXCircle = m_CenterXSquare = massCenterX / m_sumEnergy;
     m_CenterYCircle = m_CenterYSquare = massCenterY / m_sumEnergy;

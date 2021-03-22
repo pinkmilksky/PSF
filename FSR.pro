@@ -14,11 +14,14 @@ TARGET = FSR
 TEMPLATE = app
 
 SOURCES += main.cpp\
+        core.cpp \
         dialog.cpp\
         overlay.cpp \
         parser.cpp
 
 HEADERS  += dialog.h\
+            core.h \
+            enums.h \
             overlay.h \
             parser.h
 
